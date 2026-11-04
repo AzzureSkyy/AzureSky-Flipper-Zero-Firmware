@@ -16,6 +16,12 @@ You can combine multiple animation packs into one larger playlist by merging the
 - Ensure every `Name:` entry has a matching animation directory with required assets.
 - Keep `Min/Max level` and `Min/Max butthurt` ranges aligned so entries stay eligible together.
 
+### 3) Infrared Morse Beacon app
+Added a new built-in app: **IR Morse Beacon**.
+- Sends Morse code as an IR beacon loop (start/stop from app UI).
+- Includes quick message presets and live switching.
+- Supports TX routing for external IR modules: **Auto**, **Internal**, or **Ext PA7**.
+
 ## Building
 
 From repository root:
