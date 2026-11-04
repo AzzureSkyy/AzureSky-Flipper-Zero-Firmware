@@ -3,6 +3,8 @@
 enum InfraredMorseConfigIndex {
     InfraredMorseConfigIndexStart,
     InfraredMorseConfigIndexText,
+    InfraredMorseConfigIndexSaveText,
+    InfraredMorseConfigIndexLoadText,
     InfraredMorseConfigIndexWpm,
     InfraredMorseConfigIndexTxOutput,
 };
@@ -52,6 +54,8 @@ static void infrared_scene_morse_config_setup(InfraredApp* infrared) {
 
     variable_item_list_add(var_item_list, "Start Beacon", 0, NULL, NULL);
     variable_item_list_add(var_item_list, "Message Text", 0, NULL, NULL);
+    variable_item_list_add(var_item_list, "Save Text to File", 0, NULL, NULL);
+    variable_item_list_add(var_item_list, "Load Text from File", 0, NULL, NULL);
 
     item = variable_item_list_add(
         var_item_list,
@@ -109,6 +113,14 @@ bool infrared_scene_morse_config_on_event(void* context, SceneManagerEvent event
             scene_manager_next_scene(scene_manager, InfraredSceneMorseRun);
         } else if(event.event == InfraredMorseConfigIndexText) {
             scene_manager_next_scene(scene_manager, InfraredSceneMorseInput);
+        } else if(event.event == InfraredMorseConfigIndexSaveText) {
+            if(!infrared_morse_save_text(infrared)) {
+                infrared_show_error_message(infrared, "Failed to save\nMorse text file");
+            }
+        } else if(event.event == InfraredMorseConfigIndexLoadText) {
+            if(!infrared_morse_load_text(infrared)) {
+                infrared_show_error_message(infrared, "Failed to load\nMorse text file");
+            }
         }
     }
 

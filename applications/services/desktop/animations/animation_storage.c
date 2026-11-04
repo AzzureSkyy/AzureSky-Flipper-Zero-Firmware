@@ -17,16 +17,38 @@
 #define ANIMATION_DIR_DEFAULT          EXT_PATH("dolphin")
 #define ANIMATION_DIR_COMBINED         EXT_PATH("dolphin_combined")
 #define ANIMATION_MANIFEST_FILE        "manifest.txt"
+#define ANIMATION_MANIFEST_FILE_CUSTOM EXT_PATH("dolphin/manifest_custom.txt")
 #define ANIMATION_MANIFEST_FILE_BUFFER 256
 
-static const char* animation_storage_get_external_dir(Storage* storage) {
+typedef struct {
+    const char* manifest_path;
+    const char* animation_dir;
+} AnimationStoragePaths;
+
+static AnimationStoragePaths animation_storage_get_paths(Storage* storage) {
     FileInfo file_info;
+    AnimationStoragePaths paths = {
+        .manifest_path = ANIMATION_DIR_DEFAULT "/" ANIMATION_MANIFEST_FILE,
+        .animation_dir = ANIMATION_DIR_DEFAULT,
+    };
+
+    if(storage_common_stat(storage, ANIMATION_MANIFEST_FILE_CUSTOM, &file_info) == FSE_OK) {
+        paths.manifest_path = ANIMATION_MANIFEST_FILE_CUSTOM;
+        return paths;
+    }
+
     FuriString* path = furi_string_alloc();
     furi_string_printf(path, ANIMATION_DIR_COMBINED "/" ANIMATION_MANIFEST_FILE);
     const bool has_combined =
         (storage_common_stat(storage, furi_string_get_cstr(path), &file_info) == FSE_OK);
     furi_string_free(path);
-    return has_combined ? ANIMATION_DIR_COMBINED : ANIMATION_DIR_DEFAULT;
+
+    if(has_combined) {
+        paths.manifest_path = ANIMATION_DIR_COMBINED "/" ANIMATION_MANIFEST_FILE;
+        paths.animation_dir = ANIMATION_DIR_COMBINED;
+    }
+
+    return paths;
 }
 
 static bool animation_storage_open_manifest(
@@ -34,13 +56,8 @@ static bool animation_storage_open_manifest(
     Storage* storage,
     char* manifest_path,
     size_t manifest_path_size) {
-    const char* animation_dir = animation_storage_get_external_dir(storage);
-    snprintf(
-        manifest_path,
-        manifest_path_size,
-        "%s/%s",
-        animation_dir,
-        ANIMATION_MANIFEST_FILE);
+    AnimationStoragePaths paths = animation_storage_get_paths(storage);
+    snprintf(manifest_path, manifest_path_size, "%s", paths.manifest_path);
     return flipper_format_file_open_existing(file, manifest_path);
 }
 
@@ -324,11 +341,11 @@ static bool animation_storage_load_frames(
     FuriString* filename;
     filename = furi_string_alloc();
     size_t max_filesize = ROUND_UP_TO(width, 8) * height + 1;
-    const char* animation_dir = animation_storage_get_external_dir(storage);
+    AnimationStoragePaths paths = animation_storage_get_paths(storage);
 
     for(int i = 0; i < icon->frame_count; ++i) {
         frames_ok = false;
-        furi_string_printf(filename, "%s/%s/frame_%d.bm", animation_dir, name, i);
+        furi_string_printf(filename, "%s/%s/frame_%d.bm", paths.animation_dir, name, i);
 
         if(storage_common_stat(storage, furi_string_get_cstr(filename), &file_info) != FSE_OK)
             break;
@@ -479,8 +496,8 @@ static BubbleAnimation* animation_storage_load_animation(const char* name) {
 
         if(FSE_OK != storage_sd_status(storage)) break;
 
-        const char* animation_dir = animation_storage_get_external_dir(storage);
-        furi_string_printf(str, "%s/%s/" ANIMATION_META_FILE, animation_dir, name);
+        AnimationStoragePaths paths = animation_storage_get_paths(storage);
+        furi_string_printf(str, "%s/%s/" ANIMATION_META_FILE, paths.animation_dir, name);
         if(!flipper_format_file_open_existing(ff, furi_string_get_cstr(str))) break;
         if(!flipper_format_read_header(ff, str, &u32value)) break;
         if(furi_string_cmp_str(str, "Flipper Animation")) break;
