@@ -7,6 +7,8 @@
 #include <toolbox/saved_struct.h>
 #include <dolphin/dolphin.h>
 
+#include "infrared_morse.h"
+
 #define TAG "InfraredApp"
 
 #define INFRARED_TX_MIN_INTERVAL_MS (50U)
@@ -162,9 +164,20 @@ static InfraredApp* infrared_alloc(void) {
     InfraredAppState* app_state = &infrared->app_state;
     app_state->is_learning_new_remote = false;
     app_state->is_debug_enabled = furi_hal_rtc_is_flag_set(FuriHalRtcFlagDebug);
+    app_state->is_transmitting = false;
+    app_state->is_otg_enabled = false;
+    app_state->is_morse_beacon_running = false;
     app_state->edit_target = InfraredEditTargetNone;
     app_state->edit_mode = InfraredEditModeNone;
     app_state->current_button_index = InfraredButtonIndexNone;
+    app_state->prev_button_index = InfraredButtonIndexNone;
+    app_state->last_transmit_time = 0;
+    app_state->tx_pin = FuriHalInfraredTxPinInternal;
+    app_state->morse_wpm = 15;
+
+    strncpy(infrared->morse_text, "SOS", INFRARED_MORSE_TEXT_MAX_LENGTH);
+    infrared->morse_text[INFRARED_MORSE_TEXT_MAX_LENGTH] = '\0';
+    infrared->morse_timings_count = 0;
 
     infrared->scene_manager = scene_manager_alloc(&infrared_scene_handlers, infrared);
     infrared->view_dispatcher = view_dispatcher_alloc();
@@ -421,6 +434,7 @@ void infrared_tx_stop(InfraredApp* infrared) {
     infrared_play_notification_message(infrared, InfraredNotificationMessageBlinkStop);
 
     infrared->app_state.is_transmitting = false;
+    infrared->app_state.is_morse_beacon_running = false;
     infrared->app_state.last_transmit_time = furi_get_tick();
 }
 
@@ -542,6 +556,58 @@ void infrared_save_settings(InfraredApp* infrared) {
            INFRARED_SETTINGS_VERSION)) {
         FURI_LOG_E(TAG, "Failed to save settings");
     }
+}
+
+bool infrared_morse_build_signal(InfraredApp* infrared, const char* text, uint8_t wpm) {
+    if(!infrared || !text || !text[0]) {
+        return false;
+    }
+
+    size_t timings_size = 0;
+    const bool ok = infrared_morse_encode(
+        text,
+        wpm,
+        infrared->morse_timings,
+        INFRARED_MORSE_MAX_TIMINGS,
+        &timings_size);
+
+    if(!ok || !timings_size) {
+        return false;
+    }
+
+    infrared->morse_timings_count = timings_size;
+    infrared_signal_set_raw_signal(
+        infrared->current_signal,
+        infrared->morse_timings,
+        infrared->morse_timings_count,
+        INFRARED_COMMON_CARRIER_FREQUENCY,
+        INFRARED_COMMON_DUTY_CYCLE);
+
+    return true;
+}
+
+void infrared_morse_start(InfraredApp* infrared) {
+    if(!infrared || infrared->app_state.is_morse_beacon_running) {
+        return;
+    }
+
+    if(!infrared_morse_build_signal(
+           infrared, infrared->morse_text, infrared->app_state.morse_wpm)) {
+        return;
+    }
+
+    infrared_set_tx_pin(infrared, infrared->app_state.tx_pin);
+    infrared_tx_start(infrared);
+    infrared->app_state.is_morse_beacon_running = infrared->app_state.is_transmitting;
+}
+
+void infrared_morse_stop(InfraredApp* infrared) {
+    if(!infrared) {
+        return;
+    }
+
+    infrared_tx_stop(infrared);
+    infrared->app_state.is_morse_beacon_running = false;
 }
 
 void infrared_signal_received_callback(void* context, InfraredWorkerSignal* received_signal) {
