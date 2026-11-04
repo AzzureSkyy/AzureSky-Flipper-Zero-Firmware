@@ -172,6 +172,7 @@ static InfraredApp* infrared_alloc(void) {
     app_state->current_button_index = InfraredButtonIndexNone;
     app_state->prev_button_index = InfraredButtonIndexNone;
     app_state->last_transmit_time = 0;
+    app_state->morse_last_start_tick = 0;
     app_state->tx_pin = FuriHalInfraredTxPinInternal;
     app_state->morse_wpm = 15;
 
@@ -586,19 +587,78 @@ bool infrared_morse_build_signal(InfraredApp* infrared, const char* text, uint8_
     return true;
 }
 
+bool infrared_morse_load_text(InfraredApp* infrared) {
+    furi_assert(infrared);
+
+    Storage* storage = furi_record_open(RECORD_STORAGE);
+    File* file = storage_file_alloc(storage);
+    bool loaded = false;
+
+    if(storage_file_open(file, INFRARED_MORSE_TEXT_PATH, FSAM_READ, FSOM_OPEN_EXISTING)) {
+        const uint16_t max_len = INFRARED_MORSE_TEXT_MAX_LENGTH;
+        const size_t read_size = storage_file_read(file, infrared->morse_text, max_len);
+        infrared->morse_text[read_size] = '\0';
+
+        for(size_t i = 0; i < read_size; i++) {
+            if((infrared->morse_text[i] == '\r') || (infrared->morse_text[i] == '\n')) {
+                infrared->morse_text[i] = '\0';
+                break;
+            }
+        }
+
+        loaded = (infrared->morse_text[0] != '\0');
+    }
+
+    storage_file_close(file);
+    storage_file_free(file);
+    furi_record_close(RECORD_STORAGE);
+
+    return loaded;
+}
+
+bool infrared_morse_save_text(InfraredApp* infrared) {
+    furi_assert(infrared);
+
+    Storage* storage = furi_record_open(RECORD_STORAGE);
+    storage_simply_mkdir(storage, EXT_PATH("subghz"));
+
+    File* file = storage_file_alloc(storage);
+    bool saved = false;
+
+    if(storage_file_open(file, INFRARED_MORSE_TEXT_PATH, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
+        const char* text = infrared->morse_text;
+        const size_t text_len = strlen(text);
+        const size_t written = storage_file_write(file, text, text_len);
+        saved = (written == text_len);
+    }
+
+    storage_file_close(file);
+    storage_file_free(file);
+    furi_record_close(RECORD_STORAGE);
+
+    return saved;
+}
+
 void infrared_morse_start(InfraredApp* infrared) {
-    if(!infrared || infrared->app_state.is_morse_beacon_running) {
+    if(!infrared || !infrared->app_state.is_morse_beacon_running ||
+       infrared->app_state.is_transmitting) {
         return;
     }
 
     if(!infrared_morse_build_signal(
            infrared, infrared->morse_text, infrared->app_state.morse_wpm)) {
+        infrared->app_state.is_morse_beacon_running = false;
         return;
     }
 
+    const uint32_t now = furi_get_tick();
+    if((now - infrared->app_state.morse_last_start_tick) < INFRARED_MORSE_REPEAT_DELAY_MS) {
+        return;
+    }
+
+    infrared->app_state.morse_last_start_tick = now;
     infrared_set_tx_pin(infrared, infrared->app_state.tx_pin);
-    infrared_tx_start(infrared);
-    infrared->app_state.is_morse_beacon_running = infrared->app_state.is_transmitting;
+    infrared_tx_send_once(infrared);
 }
 
 void infrared_morse_stop(InfraredApp* infrared) {
@@ -606,8 +666,10 @@ void infrared_morse_stop(InfraredApp* infrared) {
         return;
     }
 
-    infrared_tx_stop(infrared);
     infrared->app_state.is_morse_beacon_running = false;
+    if(infrared->app_state.is_transmitting) {
+        infrared_tx_stop(infrared);
+    }
 }
 
 void infrared_signal_received_callback(void* context, InfraredWorkerSignal* received_signal) {
@@ -652,6 +714,7 @@ int32_t infrared_app(void* p) {
 
     infrared_load_settings(infrared);
     infrared_make_app_folder(infrared);
+    infrared_morse_load_text(infrared);
 
     bool is_remote_loaded = false;
     bool is_rpc_mode = false;

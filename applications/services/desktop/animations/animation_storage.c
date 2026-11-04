@@ -13,9 +13,36 @@
 
 #define TAG "AnimationStorage"
 
-#define ANIMATION_META_FILE     "meta.txt"
-#define ANIMATION_DIR           EXT_PATH("dolphin")
-#define ANIMATION_MANIFEST_FILE ANIMATION_DIR "/manifest.txt"
+#define ANIMATION_META_FILE            "meta.txt"
+#define ANIMATION_DIR_DEFAULT          EXT_PATH("dolphin")
+#define ANIMATION_DIR_COMBINED         EXT_PATH("dolphin_combined")
+#define ANIMATION_MANIFEST_FILE        "manifest.txt"
+#define ANIMATION_MANIFEST_FILE_BUFFER 256
+
+static const char* animation_storage_get_external_dir(Storage* storage) {
+    FileInfo file_info;
+    FuriString* path = furi_string_alloc();
+    furi_string_printf(path, ANIMATION_DIR_COMBINED "/" ANIMATION_MANIFEST_FILE);
+    const bool has_combined =
+        (storage_common_stat(storage, furi_string_get_cstr(path), &file_info) == FSE_OK);
+    furi_string_free(path);
+    return has_combined ? ANIMATION_DIR_COMBINED : ANIMATION_DIR_DEFAULT;
+}
+
+static bool animation_storage_open_manifest(
+    FlipperFormat* file,
+    Storage* storage,
+    char* manifest_path,
+    size_t manifest_path_size) {
+    const char* animation_dir = animation_storage_get_external_dir(storage);
+    snprintf(
+        manifest_path,
+        manifest_path_size,
+        "%s/%s",
+        animation_dir,
+        ANIMATION_MANIFEST_FILE);
+    return flipper_format_file_open_existing(file, manifest_path);
+}
 
 static void animation_storage_free_bubbles(BubbleAnimation* animation);
 static void animation_storage_free_frames(BubbleAnimation* animation);
@@ -36,8 +63,11 @@ static bool animation_storage_load_single_manifest_info(
 
     do {
         uint32_t u32value;
+        char manifest_path[ANIMATION_MANIFEST_FILE_BUFFER] = {0};
         if(FSE_OK != storage_sd_status(storage)) break;
-        if(!flipper_format_file_open_existing(file, ANIMATION_MANIFEST_FILE)) break;
+        if(!animation_storage_open_manifest(file, storage, manifest_path, sizeof(manifest_path))) {
+            break;
+        }
 
         if(!flipper_format_read_header(file, read_string, &u32value)) break;
         if(furi_string_cmp_str(read_string, "Flipper Animation Manifest")) break;
@@ -91,10 +121,13 @@ void animation_storage_fill_animation_list(StorageAnimationList_t* animation_lis
 
     do {
         uint32_t u32value;
+        char manifest_path[ANIMATION_MANIFEST_FILE_BUFFER] = {0};
         StorageAnimation* storage_animation = NULL;
 
         if(FSE_OK != storage_sd_status(storage)) break;
-        if(!flipper_format_file_open_existing(file, ANIMATION_MANIFEST_FILE)) break;
+        if(!animation_storage_open_manifest(file, storage, manifest_path, sizeof(manifest_path))) {
+            break;
+        }
         if(!flipper_format_read_header(file, read_string, &u32value)) break;
         if(furi_string_cmp_str(read_string, "Flipper Animation Manifest")) break;
         do {
@@ -291,10 +324,11 @@ static bool animation_storage_load_frames(
     FuriString* filename;
     filename = furi_string_alloc();
     size_t max_filesize = ROUND_UP_TO(width, 8) * height + 1;
+    const char* animation_dir = animation_storage_get_external_dir(storage);
 
     for(int i = 0; i < icon->frame_count; ++i) {
         frames_ok = false;
-        furi_string_printf(filename, ANIMATION_DIR "/%s/frame_%d.bm", name, i);
+        furi_string_printf(filename, "%s/%s/frame_%d.bm", animation_dir, name, i);
 
         if(storage_common_stat(storage, furi_string_get_cstr(filename), &file_info) != FSE_OK)
             break;
@@ -445,7 +479,8 @@ static BubbleAnimation* animation_storage_load_animation(const char* name) {
 
         if(FSE_OK != storage_sd_status(storage)) break;
 
-        furi_string_printf(str, ANIMATION_DIR "/%s/" ANIMATION_META_FILE, name);
+        const char* animation_dir = animation_storage_get_external_dir(storage);
+        furi_string_printf(str, "%s/%s/" ANIMATION_META_FILE, animation_dir, name);
         if(!flipper_format_file_open_existing(ff, furi_string_get_cstr(str))) break;
         if(!flipper_format_read_header(ff, str, &u32value)) break;
         if(furi_string_cmp_str(str, "Flipper Animation")) break;

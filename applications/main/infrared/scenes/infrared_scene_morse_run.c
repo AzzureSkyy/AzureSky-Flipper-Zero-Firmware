@@ -54,7 +54,7 @@ bool infrared_scene_morse_run_on_event(void* context, SceneManagerEvent event) {
     bool consumed = false;
 
     if(event.type == SceneManagerEventTypeTick) {
-        if(infrared->app_state.is_morse_beacon_running && !infrared->app_state.is_transmitting) {
+        if(infrared->app_state.is_morse_beacon_running) {
             infrared_morse_start(infrared);
             infrared_scene_morse_run_update_dialog(infrared);
         }
@@ -72,6 +72,8 @@ bool infrared_scene_morse_run_on_event(void* context, SceneManagerEvent event) {
             if(infrared->app_state.is_morse_beacon_running) {
                 infrared_morse_stop(infrared);
             } else {
+                infrared->app_state.is_morse_beacon_running = true;
+                infrared->app_state.morse_last_start_tick = 0;
                 infrared_morse_start(infrared);
             }
             infrared_scene_morse_run_update_dialog(infrared);

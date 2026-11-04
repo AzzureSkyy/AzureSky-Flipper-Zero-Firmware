@@ -30,6 +30,7 @@ bool infrared_scene_morse_input_on_event(void* context, SceneManagerEvent event)
                 infrared->morse_text,
                 infrared->text_store[0],
                 INFRARED_MORSE_TEXT_MAX_LENGTH + 1);
+            infrared_morse_save_text(infrared);
             scene_manager_previous_scene(infrared->scene_manager);
             consumed = true;
         }
