@@ -6,6 +6,7 @@ App(
         "gpio",
         "ibutton",
         "infrared",
+        "infrared_morse_beacon",
         "lfrfid",
         "nfc",
         "subghz",
