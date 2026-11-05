@@ -35,10 +35,9 @@ class GitVersion:
             or "unknown"
         )
 
-        try:
-            version = self._exec_git("describe --tags --abbrev=0 --exact-match")
-        except subprocess.CalledProcessError:
-            version = "unknown"
+        # AzureSky firmware version shown in qFlipper / About screen.
+        # Set here instead of via git tag, since tags also drive the RPC protobuf version.
+        version = os.environ.get("AZURESKY_FW_VERSION", "6.0")
 
         if "SOURCE_DATE_EPOCH" in os.environ:
             commit_date = datetime.utcfromtimestamp(
