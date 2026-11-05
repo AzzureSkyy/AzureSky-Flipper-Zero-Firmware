@@ -705,14 +705,11 @@ void infrared_morse_start(InfraredApp* infrared) {
         return;
     }
 
-    const uint32_t now = furi_get_tick();
-    if((now - infrared->app_state.morse_last_start_tick) < INFRARED_MORSE_REPEAT_DELAY_MS) {
-        return;
-    }
-
-    infrared->app_state.morse_last_start_tick = now;
+    /* Transmit asynchronously on the IR worker thread; it repeats the raw
+       signal continuously so the GUI thread never blocks and Stop is instant. */
+    infrared->app_state.morse_last_start_tick = furi_get_tick();
     infrared_set_tx_pin(infrared, infrared->app_state.tx_pin);
-    infrared_tx_send_once(infrared);
+    infrared_tx_start(infrared);
 }
 
 void infrared_morse_stop(InfraredApp* infrared) {

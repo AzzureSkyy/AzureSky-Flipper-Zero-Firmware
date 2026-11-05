@@ -85,6 +85,7 @@ bool infrared_scene_morse_run_on_event(void* context, SceneManagerEvent event) {
             infrared_save_settings(infrared);
             if(infrared->app_state.is_morse_beacon_running) {
                 infrared_morse_stop(infrared);
+                infrared->app_state.is_morse_beacon_running = true;
                 infrared_morse_start(infrared);
             }
             infrared_scene_morse_run_update_dialog(infrared);
