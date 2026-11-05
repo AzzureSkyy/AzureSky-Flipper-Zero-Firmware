@@ -723,15 +723,8 @@ static FuriHalInfraredTxGetDataState
     return FuriHalInfraredTxGetDataStateOk;
 }
 
-static int32_t infrared_morse_tx_thread(void* context) {
-    UNUSED(context);
-    furi_hal_infrared_async_tx_wait_termination();
-    furi_hal_infrared_async_tx_set_data_isr_callback(NULL, NULL);
-    return 0;
-}
-
 void infrared_morse_start(InfraredApp* infrared) {
-    if(!infrared || !infrared->app_state.is_morse_beacon_running || infrared->morse_thread ||
+    if(!infrared || !infrared->app_state.is_morse_beacon_running ||
        infrared->app_state.is_transmitting) {
         return;
     }
@@ -749,12 +742,8 @@ void infrared_morse_start(InfraredApp* infrared) {
     infrared->morse_stop_requested = false;
     infrared->morse_tx_index = 0;
     furi_hal_infrared_async_tx_set_data_isr_callback(infrared_morse_tx_data_callback, infrared);
-    furi_hal_infrared_async_tx_start(INFRARED_COMMON_CARRIER_FREQUENCY, INFRARED_COMMON_DUTY_CYCLE);
-
-    /* A small thread owns the blocking wait so the GUI stays responsive */
-    infrared->morse_thread =
-        furi_thread_alloc_ex("MorseTx", 1024, infrared_morse_tx_thread, infrared);
-    furi_thread_start(infrared->morse_thread);
+    furi_hal_infrared_async_tx_start(
+        INFRARED_COMMON_CARRIER_FREQUENCY, INFRARED_COMMON_DUTY_CYCLE);
 
     dolphin_deed(DolphinDeedIrSend);
     infrared_play_notification_message(infrared, InfraredNotificationMessageBlinkStartSend);
@@ -766,14 +755,14 @@ void infrared_morse_stop(InfraredApp* infrared) {
     }
 
     infrared->app_state.is_morse_beacon_running = false;
+    infrared->morse_stop_requested = true;
 
-    if(infrared->morse_thread) {
-        infrared->morse_stop_requested = true;
-        furi_thread_join(infrared->morse_thread);
-        furi_thread_free(infrared->morse_thread);
-        infrared->morse_thread = NULL;
-        infrared_play_notification_message(infrared, InfraredNotificationMessageBlinkStop);
+    if(furi_hal_infrared_is_busy()) {
+        furi_hal_infrared_async_tx_stop();
     }
+
+    furi_hal_infrared_async_tx_set_data_isr_callback(NULL, NULL);
+    infrared_play_notification_message(infrared, InfraredNotificationMessageBlinkStop);
 }
 
 void infrared_signal_received_callback(void* context, InfraredWorkerSignal* received_signal) {
