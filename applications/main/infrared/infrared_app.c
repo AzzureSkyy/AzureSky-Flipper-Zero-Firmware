@@ -3,6 +3,7 @@
 #include <power/power_service/power.h>
 
 #include <string.h>
+#include <ctype.h>
 #include <toolbox/path.h>
 #include <toolbox/saved_struct.h>
 #include <dolphin/dolphin.h>
@@ -634,6 +635,51 @@ bool infrared_morse_save_text(InfraredApp* infrared) {
     bool saved = false;
 
     if(storage_file_open(file, INFRARED_MORSE_TEXT_PATH, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
+        const char* text = infrared->morse_text;
+        const size_t text_len = strlen(text);
+        const size_t written = storage_file_write(file, text, text_len);
+        saved = (written == text_len);
+    }
+
+    storage_file_close(file);
+    storage_file_free(file);
+    furi_record_close(RECORD_STORAGE);
+
+    return saved;
+}
+
+bool infrared_morse_save_text_named(InfraredApp* infrared, FuriString* saved_path) {
+    furi_assert(infrared);
+    furi_assert(saved_path);
+
+    /* Build a file name from the message: letters/digits kept, spaces -> '_' */
+    char name[INFRARED_MORSE_SAVE_NAME_MAX + 1] = {0};
+    size_t len = 0;
+    for(const char* c = infrared->morse_text; *c && len < INFRARED_MORSE_SAVE_NAME_MAX; c++) {
+        if(isalnum((unsigned char)*c) || *c == '-' || *c == '_') {
+            name[len++] = *c;
+        } else if(*c == ' ' && len > 0 && name[len - 1] != '_') {
+            name[len++] = '_';
+        }
+    }
+    while(len > 0 && name[len - 1] == '_') {
+        name[--len] = '\0';
+    }
+    if(len == 0) {
+        strlcpy(name, "message", sizeof(name));
+    }
+
+    Storage* storage = furi_record_open(RECORD_STORAGE);
+    storage_simply_mkdir(storage, INFRARED_MORSE_TEXT_DIR);
+    storage_simply_mkdir(storage, INFRARED_MORSE_SAVES_DIR);
+
+    furi_string_printf(saved_path, INFRARED_MORSE_SAVES_DIR "/%s.txt", name);
+
+    File* file = storage_file_alloc(storage);
+    bool saved = false;
+
+    if(storage_file_open(
+           file, furi_string_get_cstr(saved_path), FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
         const char* text = infrared->morse_text;
         const size_t text_len = strlen(text);
         const size_t written = storage_file_write(file, text, text_len);

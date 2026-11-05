@@ -98,23 +98,27 @@ static void infrared_scene_morse_config_show_message(
 }
 
 static void infrared_scene_morse_config_save(InfraredApp* infrared) {
-    if(infrared_morse_save_text(infrared)) {
+    FuriString* path = furi_string_alloc();
+    if(infrared_morse_save_text_named(infrared, path)) {
+        const char* file_name = strrchr(furi_string_get_cstr(path), '/');
         infrared_scene_morse_config_show_message(
-            infrared, "Text Saved", "subghz/\nmorse_beacon_text.txt");
+            infrared, "Text Saved", file_name ? file_name + 1 : furi_string_get_cstr(path));
     } else {
         infrared_show_error_message(infrared, "Failed to save\nMorse text file");
     }
+    furi_string_free(path);
 }
 
 static void infrared_scene_morse_config_load(InfraredApp* infrared) {
     Storage* storage = furi_record_open(RECORD_STORAGE);
     storage_simply_mkdir(storage, INFRARED_MORSE_TEXT_DIR);
+    storage_simply_mkdir(storage, INFRARED_MORSE_SAVES_DIR);
     furi_record_close(RECORD_STORAGE);
 
-    FuriString* path = furi_string_alloc_set(INFRARED_MORSE_TEXT_PATH);
+    FuriString* path = furi_string_alloc_set(INFRARED_MORSE_SAVES_DIR);
     DialogsFileBrowserOptions browser_options;
     dialog_file_browser_set_basic_options(&browser_options, ".txt", NULL);
-    browser_options.base_path = INFRARED_MORSE_TEXT_DIR;
+    browser_options.base_path = INFRARED_MORSE_SAVES_DIR;
 
     if(dialog_file_browser_show(infrared->dialogs, path, path, &browser_options)) {
         if(infrared_morse_load_text_from(infrared, furi_string_get_cstr(path))) {
