@@ -731,8 +731,13 @@ void infrared_morse_start(InfraredApp* infrared) {
 
     if(!infrared_morse_build_signal(
            infrared, infrared->morse_text, infrared->app_state.morse_wpm) ||
-       (infrared->morse_timings_count % 2) == 0 || furi_hal_infrared_is_busy()) {
+       (infrared->morse_timings_count % 2) == 0) {
         infrared->app_state.is_morse_beacon_running = false;
+        return;
+    }
+
+    if(furi_hal_infrared_is_busy()) {
+        /* Already transmitting this beacon; keep running state and UI as Stop. */
         return;
     }
 
