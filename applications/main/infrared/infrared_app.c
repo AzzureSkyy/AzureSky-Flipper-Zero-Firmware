@@ -693,23 +693,71 @@ bool infrared_morse_save_text_named(InfraredApp* infrared, FuriString* saved_pat
     return saved;
 }
 
+/* ISR data callback: loops the Morse timings forever (mark, space, ...,
+   mark, inter-repeat gap) and ends at the very next timing once stop is
+   requested, so Stop never waits for the rest of the message. */
+static FuriHalInfraredTxGetDataState
+    infrared_morse_tx_data_callback(void* context, uint32_t* duration, bool* level) {
+    InfraredApp* infrared = context;
+
+    if(infrared->morse_stop_requested) {
+        *level = false;
+        *duration = 1000;
+        return FuriHalInfraredTxGetDataStateLastDone;
+    }
+
+    const size_t count = infrared->morse_timings_count;
+    const size_t i = infrared->morse_tx_index;
+
+    if(i < count) {
+        *level = !(i % 2);
+        *duration = infrared->morse_timings[i];
+        infrared->morse_tx_index = i + 1;
+    } else {
+        /* Word gap (7 units) between repeats; timings[0] is one dot unit */
+        *level = false;
+        *duration = 7 * (1200000U / MAX(infrared->app_state.morse_wpm, 5));
+        infrared->morse_tx_index = 0;
+    }
+
+    return FuriHalInfraredTxGetDataStateOk;
+}
+
+static int32_t infrared_morse_tx_thread(void* context) {
+    UNUSED(context);
+    furi_hal_infrared_async_tx_wait_termination();
+    furi_hal_infrared_async_tx_set_data_isr_callback(NULL, NULL);
+    return 0;
+}
+
 void infrared_morse_start(InfraredApp* infrared) {
-    if(!infrared || !infrared->app_state.is_morse_beacon_running ||
+    if(!infrared || !infrared->app_state.is_morse_beacon_running || infrared->morse_thread ||
        infrared->app_state.is_transmitting) {
         return;
     }
 
     if(!infrared_morse_build_signal(
-           infrared, infrared->morse_text, infrared->app_state.morse_wpm)) {
+           infrared, infrared->morse_text, infrared->app_state.morse_wpm) ||
+       (infrared->morse_timings_count % 2) == 0 || furi_hal_infrared_is_busy()) {
         infrared->app_state.is_morse_beacon_running = false;
         return;
     }
 
-    /* Transmit asynchronously on the IR worker thread; it repeats the raw
-       signal continuously so the GUI thread never blocks and Stop is instant. */
     infrared->app_state.morse_last_start_tick = furi_get_tick();
     infrared_set_tx_pin(infrared, infrared->app_state.tx_pin);
-    infrared_tx_start(infrared);
+
+    infrared->morse_stop_requested = false;
+    infrared->morse_tx_index = 0;
+    furi_hal_infrared_async_tx_set_data_isr_callback(infrared_morse_tx_data_callback, infrared);
+    furi_hal_infrared_async_tx_start(INFRARED_COMMON_CARRIER_FREQUENCY, INFRARED_COMMON_DUTY_CYCLE);
+
+    /* A small thread owns the blocking wait so the GUI stays responsive */
+    infrared->morse_thread =
+        furi_thread_alloc_ex("MorseTx", 1024, infrared_morse_tx_thread, infrared);
+    furi_thread_start(infrared->morse_thread);
+
+    dolphin_deed(DolphinDeedIrSend);
+    infrared_play_notification_message(infrared, InfraredNotificationMessageBlinkStartSend);
 }
 
 void infrared_morse_stop(InfraredApp* infrared) {
@@ -718,8 +766,13 @@ void infrared_morse_stop(InfraredApp* infrared) {
     }
 
     infrared->app_state.is_morse_beacon_running = false;
-    if(infrared->app_state.is_transmitting) {
-        infrared_tx_stop(infrared);
+
+    if(infrared->morse_thread) {
+        infrared->morse_stop_requested = true;
+        furi_thread_join(infrared->morse_thread);
+        furi_thread_free(infrared->morse_thread);
+        infrared->morse_thread = NULL;
+        infrared_play_notification_message(infrared, InfraredNotificationMessageBlinkStop);
     }
 }
 
