@@ -713,14 +713,14 @@ static FuriHalInfraredTxGetDataState
         *level = !(i % 2);
         *duration = infrared->morse_timings[i];
         infrared->morse_tx_index = i + 1;
+        return FuriHalInfraredTxGetDataStateDone;
     } else {
         /* Word gap (7 units) between repeats; timings[0] is one dot unit */
         *level = false;
         *duration = 7 * (1200000U / MAX(infrared->app_state.morse_wpm, 5));
         infrared->morse_tx_index = 0;
+        return FuriHalInfraredTxGetDataStateDone;
     }
-
-    return FuriHalInfraredTxGetDataStateOk;
 }
 
 void infrared_morse_start(InfraredApp* infrared) {

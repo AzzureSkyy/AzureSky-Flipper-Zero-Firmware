@@ -142,7 +142,6 @@ struct InfraredApp {
     char morse_text[INFRARED_MORSE_TEXT_MAX_LENGTH + 1];
     uint32_t morse_timings[INFRARED_MORSE_MAX_TIMINGS];
     size_t morse_timings_count;
-    FuriThread* morse_thread; /**< Morse beacon TX thread, NULL when idle. */
     volatile bool morse_stop_requested; /**< Set to end Morse TX at next timing. */
     size_t morse_tx_index; /**< Position in morse_timings (ISR-owned while TX). */
     InfraredAppState app_state; /**< Application state. */

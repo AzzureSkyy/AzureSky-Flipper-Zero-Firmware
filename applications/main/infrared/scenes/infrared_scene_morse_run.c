@@ -44,7 +44,7 @@ void infrared_scene_morse_run_on_enter(void* context) {
     infrared_scene_morse_run_update_dialog(infrared);
     dialog_ex_set_result_callback(dialog_ex, infrared_scene_morse_run_dialog_callback);
     dialog_ex_set_context(dialog_ex, infrared);
-    dialog_ex_enable_extended_events(dialog_ex);
+    dialog_ex_disable_extended_events(dialog_ex);
 
     view_dispatcher_switch_to_view(infrared->view_dispatcher, InfraredViewDialogEx);
 }
