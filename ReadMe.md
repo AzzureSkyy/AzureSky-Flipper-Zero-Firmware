@@ -10,11 +10,38 @@ Idle animations now use a shuffle-bag style selector:
 - After a full cycle, a new cycle starts and avoids immediate back-to-back repeats.
 - Selection still honors manifest `Weight` values within each cycle.
 
-### 2) Combined manifest support for longer playlists
-You can combine multiple animation packs into one larger playlist by merging their manifest entries and keeping all referenced animation folders together on SD card.
-- Place your combined manifest at: `/ext/dolphin/manifest.txt` (or your chosen animation folder path).
-- Ensure every `Name:` entry has a matching animation directory with required assets.
-- Keep `Min/Max level` and `Min/Max butthurt` ranges aligned so entries stay eligible together.
+### 2) Themes: switchable animation sets
+A **Themes** app in the main menu lets you switch between whole animation sets, one at a time.
+- Location: **Main menu -> Themes**.
+- **Dolphin** (the official animations from `/ext/dolphin`) is always listed first.
+- Every folder in `/ext/themes` that has its own `manifest.txt` is listed after it. The folder name is the theme name.
+- Pick a theme and press **Apply**. The Flipper reboots and plays only that theme's animations.
+- The current theme is marked with `*`. If a theme folder is missing or broken, it falls back to Dolphin.
+
+Each theme is self-contained, with its own manifest and animation folders:
+
+```
+SD card
+└── themes
+    ├── AzureSky
+    │   ├── manifest.txt
+    │   ├── Animation_One_128x64
+    │   │   ├── meta.txt
+    │   │   └── frame_0.bm ...
+    │   └── ...
+    └── Miscellaneous
+        ├── manifest.txt
+        └── ...
+```
+
+To add a theme, drop its folder into `/ext/themes`:
+- `manifest.txt` must sit directly inside the theme folder.
+- Every `Name:` entry in the manifest needs a matching animation folder with `meta.txt` and its `frame_N.bm` files.
+- To make a longer playlist, put several packs' animation folders in one theme folder and merge their manifest entries into its `manifest.txt`.
+- Don't create a `themes/Dolphin` folder. Dolphin is built in.
+- `themes/.current` is created by the app to remember your choice.
+
+Firmware updates only replace `/ext/dolphin`, so theme folders are never overwritten.
 
 ### 3) Morse Beacon integrated into Infrared app
 Morse Beacon is now built into the existing **Infrared** app menu (not a separate standalone app).
@@ -22,6 +49,10 @@ Morse Beacon is now built into the existing **Infrared** app menu (not a separat
 - Supports custom text entry from the device UI.
 - Includes adjustable WPM speed control.
 - Supports TX routing for external IR modules: **Auto**, **Internal**, or **Ext PA7**.
+- **Save Text to File** / **Load Text from File** store the message at `/ext/subghz/morse_beacon_text.txt`, so you can pre-type text and replay it.
+
+### 4) Version
+The firmware reports itself as version **6.0** in qFlipper and on the About screen.
 
 ## Building
 

@@ -1,0 +1,12 @@
+App(
+	appid="themes",
+	name="Themes",
+	apptype=FlipperAppType.MENUEXTERNAL,
+	entry_point="themes_app",
+	targets=["f7"],
+	icon="A_Plugins_14",
+	stack_size=2 * 1024,
+	order=95,
+	fap_icon="icon.png",
+	fap_category="Tools",
+)
