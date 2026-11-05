@@ -85,6 +85,49 @@ static void infrared_scene_morse_config_setup(InfraredApp* infrared) {
     variable_item_set_current_value_text(item, infrared_morse_tx_text[tx_index]);
 }
 
+static void infrared_scene_morse_config_show_message(
+    InfraredApp* infrared,
+    const char* header,
+    const char* text) {
+    DialogMessage* message = dialog_message_alloc();
+    dialog_message_set_header(message, header, 64, 2, AlignCenter, AlignTop);
+    dialog_message_set_text(message, text, 64, 32, AlignCenter, AlignCenter);
+    dialog_message_set_buttons(message, NULL, "OK", NULL);
+    dialog_message_show(infrared->dialogs, message);
+    dialog_message_free(message);
+}
+
+static void infrared_scene_morse_config_save(InfraredApp* infrared) {
+    if(infrared_morse_save_text(infrared)) {
+        infrared_scene_morse_config_show_message(
+            infrared, "Text Saved", "subghz/\nmorse_beacon_text.txt");
+    } else {
+        infrared_show_error_message(infrared, "Failed to save\nMorse text file");
+    }
+}
+
+static void infrared_scene_morse_config_load(InfraredApp* infrared) {
+    Storage* storage = furi_record_open(RECORD_STORAGE);
+    storage_simply_mkdir(storage, INFRARED_MORSE_TEXT_DIR);
+    furi_record_close(RECORD_STORAGE);
+
+    FuriString* path = furi_string_alloc_set(INFRARED_MORSE_TEXT_PATH);
+    DialogsFileBrowserOptions browser_options;
+    dialog_file_browser_set_basic_options(&browser_options, ".txt", NULL);
+    browser_options.base_path = INFRARED_MORSE_TEXT_DIR;
+
+    if(dialog_file_browser_show(infrared->dialogs, path, path, &browser_options)) {
+        if(infrared_morse_load_text_from(infrared, furi_string_get_cstr(path))) {
+            infrared_scene_morse_config_show_message(
+                infrared, "Text Loaded", infrared->morse_text);
+        } else {
+            infrared_show_error_message(infrared, "File is empty or\ncannot be read");
+        }
+    }
+
+    furi_string_free(path);
+}
+
 void infrared_scene_morse_config_on_enter(void* context) {
     InfraredApp* infrared = context;
     VariableItemList* var_item_list = infrared->var_item_list;
@@ -114,13 +157,9 @@ bool infrared_scene_morse_config_on_event(void* context, SceneManagerEvent event
         } else if(event.event == InfraredMorseConfigIndexText) {
             scene_manager_next_scene(scene_manager, InfraredSceneMorseInput);
         } else if(event.event == InfraredMorseConfigIndexSaveText) {
-            if(!infrared_morse_save_text(infrared)) {
-                infrared_show_error_message(infrared, "Failed to save\nMorse text file");
-            }
+            infrared_scene_morse_config_save(infrared);
         } else if(event.event == InfraredMorseConfigIndexLoadText) {
-            if(!infrared_morse_load_text(infrared)) {
-                infrared_show_error_message(infrared, "Failed to load\nMorse text file");
-            }
+            infrared_scene_morse_config_load(infrared);
         }
     }
 

@@ -588,25 +588,33 @@ bool infrared_morse_build_signal(InfraredApp* infrared, const char* text, uint8_
 }
 
 bool infrared_morse_load_text(InfraredApp* infrared) {
+    return infrared_morse_load_text_from(infrared, INFRARED_MORSE_TEXT_PATH);
+}
+
+bool infrared_morse_load_text_from(InfraredApp* infrared, const char* path) {
     furi_assert(infrared);
+    furi_assert(path);
 
     Storage* storage = furi_record_open(RECORD_STORAGE);
     File* file = storage_file_alloc(storage);
     bool loaded = false;
+    char buffer[INFRARED_MORSE_TEXT_MAX_LENGTH + 1] = {0};
 
-    if(storage_file_open(file, INFRARED_MORSE_TEXT_PATH, FSAM_READ, FSOM_OPEN_EXISTING)) {
-        const uint16_t max_len = INFRARED_MORSE_TEXT_MAX_LENGTH;
-        const size_t read_size = storage_file_read(file, infrared->morse_text, max_len);
-        infrared->morse_text[read_size] = '\0';
+    if(storage_file_open(file, path, FSAM_READ, FSOM_OPEN_EXISTING)) {
+        const size_t read_size = storage_file_read(file, buffer, INFRARED_MORSE_TEXT_MAX_LENGTH);
+        buffer[read_size] = '\0';
 
         for(size_t i = 0; i < read_size; i++) {
-            if((infrared->morse_text[i] == '\r') || (infrared->morse_text[i] == '\n')) {
-                infrared->morse_text[i] = '\0';
+            if((buffer[i] == '\r') || (buffer[i] == '\n')) {
+                buffer[i] = '\0';
                 break;
             }
         }
 
-        loaded = (infrared->morse_text[0] != '\0');
+        if(buffer[0] != '\0') {
+            strlcpy(infrared->morse_text, buffer, sizeof(infrared->morse_text));
+            loaded = true;
+        }
     }
 
     storage_file_close(file);

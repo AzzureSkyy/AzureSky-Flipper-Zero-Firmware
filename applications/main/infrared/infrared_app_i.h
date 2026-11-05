@@ -51,7 +51,8 @@
 
 #define INFRARED_APP_FOLDER      EXT_PATH("infrared")
 #define INFRARED_APP_EXTENSION   ".ir"
-#define INFRARED_MORSE_TEXT_PATH EXT_PATH("subghz/morse_beacon_text.txt")
+#define INFRARED_MORSE_TEXT_DIR  EXT_PATH("subghz")
+#define INFRARED_MORSE_TEXT_PATH INFRARED_MORSE_TEXT_DIR "/morse_beacon_text.txt"
 
 #define INFRARED_DEFAULT_REMOTE_NAME "Remote"
 #define INFRARED_LOG_TAG             "InfraredApp"
@@ -332,6 +333,7 @@ void infrared_save_settings(InfraredApp* infrared);
 
 bool infrared_morse_build_signal(InfraredApp* infrared, const char* text, uint8_t wpm);
 bool infrared_morse_load_text(InfraredApp* infrared);
+bool infrared_morse_load_text_from(InfraredApp* infrared, const char* path);
 bool infrared_morse_save_text(InfraredApp* infrared);
 void infrared_morse_start(InfraredApp* infrared);
 void infrared_morse_stop(InfraredApp* infrared);

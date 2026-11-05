@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 
 from ansi.color import fg
@@ -77,9 +78,37 @@ def __invoke_git(args, source_dir):
     )
 
 
+def _proto_ver_from_changelog(src_dir):
+    # Use the protocol version from the protobuf Changelog so the RPC version
+    # matches what qFlipper and the mobile apps expect, independent of repo tags.
+    changelog = os.path.join(src_dir, "Changelog")
+    try:
+        with open(changelog, "rt") as file:
+            for line in file:
+                match = re.match(r"^##\s*\[(\d+)\.(\d+)\]", line.strip())
+                if match:
+                    return match.group(1), match.group(2)
+    except OSError:
+        pass
+    return None
+
+
 def _proto_ver_generator(target, source, env):
     target_file = target[0]
     src_dir = source[0].dir.abspath
+
+    changelog_ver = _proto_ver_from_changelog(src_dir)
+    if changelog_ver:
+        git_major, git_minor = changelog_ver
+        version_file_data = (
+            "#pragma once",
+            f"#define PROTOBUF_MAJOR_VERSION {git_major}",
+            f"#define PROTOBUF_MINOR_VERSION {git_minor}",
+            "",
+        )
+        with open(str(target_file), "wt") as file:
+            file.write("\n".join(version_file_data))
+        return
 
     def fetch(unshallow=False):
         git_args = ["fetch", "--tags"]

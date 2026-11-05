@@ -35,9 +35,9 @@ class GitVersion:
             or "unknown"
         )
 
-        # AzureSky firmware version shown in qFlipper / About screen.
-        # Set here instead of via git tag, since tags also drive the RPC protobuf version.
-        version = os.environ.get("AZURESKY_FW_VERSION", "6.0")
+        # AzureSky firmware version shown in qFlipper / mobile apps / About screen.
+        # The RPC protocol version comes from assets/protobuf/Changelog instead.
+        version = os.environ.get("AZURESKY_FW_VERSION", "6.0-AzureSky")
 
         if "SOURCE_DATE_EPOCH" in os.environ:
             commit_date = datetime.utcfromtimestamp(

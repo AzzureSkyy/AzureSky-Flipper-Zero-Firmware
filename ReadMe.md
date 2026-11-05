@@ -49,10 +49,11 @@ Morse Beacon is now built into the existing **Infrared** app menu (not a separat
 - Supports custom text entry from the device UI.
 - Includes adjustable WPM speed control.
 - Supports TX routing for external IR modules: **Auto**, **Internal**, or **Ext PA7**.
-- **Save Text to File** / **Load Text from File** store the message at `/ext/subghz/morse_beacon_text.txt`, so you can pre-type text and replay it.
+- **Save Text to File** saves the current message to `/ext/subghz/morse_beacon_text.txt` and shows a confirmation.
+- **Load Text from File** opens a file browser in `/ext/subghz` so you can pick any pre-typed `.txt` file. The first line becomes the message.
 
 ### 4) Version
-The firmware reports itself as version **6.0** in qFlipper and on the About screen.
+The firmware reports itself as **6.0-AzureSky** in qFlipper, the mobile apps and the About screen. The RPC protocol version is read from `assets/protobuf/Changelog`, so qFlipper and the mobile apps connect normally regardless of repo tags.
 
 ## Building
 
