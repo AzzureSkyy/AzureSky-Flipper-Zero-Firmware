@@ -128,12 +128,20 @@ void animation_storage_fill_animation_list(StorageAnimationList_t* animation_lis
     flipper_format_set_strict_mode(file, true);
     FuriString* read_string;
     read_string = furi_string_alloc();
+    bool custom_theme = false;
+    size_t external_count = 0;
 
     do {
         uint32_t u32value;
         StorageAnimation* storage_animation = NULL;
 
         if(FSE_OK != storage_sd_status(storage)) break;
+        {
+            FuriString* dir = furi_string_alloc();
+            animation_storage_get_dir(storage, dir);
+            custom_theme = furi_string_cmp_str(dir, ANIMATION_DIR) != 0;
+            furi_string_free(dir);
+        }
         if(!animation_storage_open_manifest(storage, file)) break;
         if(!flipper_format_read_header(file, read_string, &u32value)) break;
         if(furi_string_cmp_str(read_string, "Flipper Animation Manifest")) break;
@@ -158,6 +166,7 @@ void animation_storage_fill_animation_list(StorageAnimationList_t* animation_lis
             storage_animation->manifest_info.weight = u32value;
 
             StorageAnimationList_push_back(*animation_list, storage_animation);
+            external_count++;
         } while(1);
 
         animation_storage_free_storage_animation(&storage_animation);
@@ -166,8 +175,13 @@ void animation_storage_fill_animation_list(StorageAnimationList_t* animation_lis
     furi_string_free(read_string);
     flipper_format_free(file);
 
-    // add hard-coded animations
+    // add hard-coded animations; a selected custom theme replaces the
+    // built-in idle (TV/couch) one so only the theme's animations play
     for(size_t i = 0; i < dolphin_internal_size; ++i) {
+        if(custom_theme && external_count > 0 &&
+           !strcmp(dolphin_internal[i].manifest_info.name, "L1_Tv_128x47")) {
+            continue;
+        }
         StorageAnimationList_push_back(*animation_list, (StorageAnimation*)&dolphin_internal[i]);
     }
 
