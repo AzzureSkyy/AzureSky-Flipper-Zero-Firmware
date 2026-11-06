@@ -43,9 +43,9 @@ To add a theme, drop its folder into `/ext/themes`:
 
 Firmware updates only replace `/ext/dolphin`, so theme folders are never overwritten.
 
-### 3) Morse Beacon integrated into Infrared app
-Morse Beacon is now built into the existing **Infrared** app menu (not a separate standalone app).
-- Location: **Infrared -> Morse Beacon**.
+### 3) Morse Beacon app
+Morse Beacon is its own app in the main menu, with a dedicated beacon icon. It is separate from the Infrared app; the Infrared app itself is unchanged from stock.
+- Location: **Main menu -> Morse Beacon**.
 - Supports custom text entry from the device UI.
 - Includes adjustable WPM speed control.
 - Supports TX routing for external IR modules: **Auto**, **Internal**, or **Ext PA7**.
