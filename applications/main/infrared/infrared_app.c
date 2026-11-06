@@ -8,8 +8,6 @@
 #include <toolbox/saved_struct.h>
 #include <dolphin/dolphin.h>
 
-#include "infrared_morse.h"
-
 #define TAG "InfraredApp"
 
 #define INFRARED_TX_MIN_INTERVAL_MS (50U)
@@ -167,19 +165,12 @@ static InfraredApp* infrared_alloc(void) {
     app_state->is_debug_enabled = furi_hal_rtc_is_flag_set(FuriHalRtcFlagDebug);
     app_state->is_transmitting = false;
     app_state->is_otg_enabled = false;
-    app_state->is_morse_beacon_running = false;
     app_state->edit_target = InfraredEditTargetNone;
     app_state->edit_mode = InfraredEditModeNone;
     app_state->current_button_index = InfraredButtonIndexNone;
     app_state->prev_button_index = InfraredButtonIndexNone;
     app_state->last_transmit_time = 0;
-    app_state->morse_last_start_tick = 0;
     app_state->tx_pin = FuriHalInfraredTxPinInternal;
-    app_state->morse_wpm = 15;
-
-    strncpy(infrared->morse_text, "SOS", INFRARED_MORSE_TEXT_MAX_LENGTH);
-    infrared->morse_text[INFRARED_MORSE_TEXT_MAX_LENGTH] = '\0';
-    infrared->morse_timings_count = 0;
 
     infrared->scene_manager = scene_manager_alloc(&infrared_scene_handlers, infrared);
     infrared->view_dispatcher = view_dispatcher_alloc();
@@ -436,7 +427,6 @@ void infrared_tx_stop(InfraredApp* infrared) {
     infrared_play_notification_message(infrared, InfraredNotificationMessageBlinkStop);
 
     infrared->app_state.is_transmitting = false;
-    infrared->app_state.is_morse_beacon_running = false;
     infrared->app_state.last_transmit_time = furi_get_tick();
 }
 
@@ -560,216 +550,6 @@ void infrared_save_settings(InfraredApp* infrared) {
     }
 }
 
-bool infrared_morse_build_signal(InfraredApp* infrared, const char* text, uint8_t wpm) {
-    if(!infrared || !text || !text[0]) {
-        return false;
-    }
-
-    size_t timings_size = 0;
-    const bool ok = infrared_morse_encode(
-        text,
-        wpm,
-        infrared->morse_timings,
-        INFRARED_MORSE_MAX_TIMINGS,
-        &timings_size);
-
-    if(!ok || !timings_size) {
-        return false;
-    }
-
-    infrared->morse_timings_count = timings_size;
-    infrared_signal_set_raw_signal(
-        infrared->current_signal,
-        infrared->morse_timings,
-        infrared->morse_timings_count,
-        INFRARED_COMMON_CARRIER_FREQUENCY,
-        INFRARED_COMMON_DUTY_CYCLE);
-
-    return true;
-}
-
-bool infrared_morse_load_text(InfraredApp* infrared) {
-    return infrared_morse_load_text_from(infrared, INFRARED_MORSE_TEXT_PATH);
-}
-
-bool infrared_morse_load_text_from(InfraredApp* infrared, const char* path) {
-    furi_assert(infrared);
-    furi_assert(path);
-
-    Storage* storage = furi_record_open(RECORD_STORAGE);
-    File* file = storage_file_alloc(storage);
-    bool loaded = false;
-    char buffer[INFRARED_MORSE_TEXT_MAX_LENGTH + 1] = {0};
-
-    if(storage_file_open(file, path, FSAM_READ, FSOM_OPEN_EXISTING)) {
-        const size_t read_size = storage_file_read(file, buffer, INFRARED_MORSE_TEXT_MAX_LENGTH);
-        buffer[read_size] = '\0';
-
-        for(size_t i = 0; i < read_size; i++) {
-            if((buffer[i] == '\r') || (buffer[i] == '\n')) {
-                buffer[i] = '\0';
-                break;
-            }
-        }
-
-        if(buffer[0] != '\0') {
-            strlcpy(infrared->morse_text, buffer, sizeof(infrared->morse_text));
-            loaded = true;
-        }
-    }
-
-    storage_file_close(file);
-    storage_file_free(file);
-    furi_record_close(RECORD_STORAGE);
-
-    return loaded;
-}
-
-bool infrared_morse_save_text(InfraredApp* infrared) {
-    furi_assert(infrared);
-
-    Storage* storage = furi_record_open(RECORD_STORAGE);
-    storage_simply_mkdir(storage, EXT_PATH("subghz"));
-
-    File* file = storage_file_alloc(storage);
-    bool saved = false;
-
-    if(storage_file_open(file, INFRARED_MORSE_TEXT_PATH, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
-        const char* text = infrared->morse_text;
-        const size_t text_len = strlen(text);
-        const size_t written = storage_file_write(file, text, text_len);
-        saved = (written == text_len);
-    }
-
-    storage_file_close(file);
-    storage_file_free(file);
-    furi_record_close(RECORD_STORAGE);
-
-    return saved;
-}
-
-bool infrared_morse_save_text_named(InfraredApp* infrared, FuriString* saved_path) {
-    furi_assert(infrared);
-    furi_assert(saved_path);
-
-    /* Build a file name from the message: letters/digits kept, spaces -> '_' */
-    char name[INFRARED_MORSE_SAVE_NAME_MAX + 1] = {0};
-    size_t len = 0;
-    for(const char* c = infrared->morse_text; *c && len < INFRARED_MORSE_SAVE_NAME_MAX; c++) {
-        if(isalnum((unsigned char)*c) || *c == '-' || *c == '_') {
-            name[len++] = *c;
-        } else if(*c == ' ' && len > 0 && name[len - 1] != '_') {
-            name[len++] = '_';
-        }
-    }
-    while(len > 0 && name[len - 1] == '_') {
-        name[--len] = '\0';
-    }
-    if(len == 0) {
-        strlcpy(name, "message", sizeof(name));
-    }
-
-    Storage* storage = furi_record_open(RECORD_STORAGE);
-    storage_simply_mkdir(storage, INFRARED_MORSE_TEXT_DIR);
-    storage_simply_mkdir(storage, INFRARED_MORSE_SAVES_DIR);
-
-    furi_string_printf(saved_path, INFRARED_MORSE_SAVES_DIR "/%s.txt", name);
-
-    File* file = storage_file_alloc(storage);
-    bool saved = false;
-
-    if(storage_file_open(
-           file, furi_string_get_cstr(saved_path), FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
-        const char* text = infrared->morse_text;
-        const size_t text_len = strlen(text);
-        const size_t written = storage_file_write(file, text, text_len);
-        saved = (written == text_len);
-    }
-
-    storage_file_close(file);
-    storage_file_free(file);
-    furi_record_close(RECORD_STORAGE);
-
-    return saved;
-}
-
-/* ISR data callback: loops the Morse timings forever (mark, space, ...,
-   mark, inter-repeat gap) and ends at the very next timing once stop is
-   requested, so Stop never waits for the rest of the message. */
-static FuriHalInfraredTxGetDataState
-    infrared_morse_tx_data_callback(void* context, uint32_t* duration, bool* level) {
-    InfraredApp* infrared = context;
-
-    if(infrared->morse_stop_requested) {
-        *level = false;
-        *duration = 1000;
-        return FuriHalInfraredTxGetDataStateLastDone;
-    }
-
-    const size_t count = infrared->morse_timings_count;
-    const size_t i = infrared->morse_tx_index;
-
-    if(i < count) {
-        *level = !(i % 2);
-        *duration = infrared->morse_timings[i];
-        infrared->morse_tx_index = i + 1;
-        return FuriHalInfraredTxGetDataStateDone;
-    } else {
-        /* Word gap (7 units) between repeats; timings[0] is one dot unit */
-        *level = false;
-        *duration = 7 * (1200000U / MAX(infrared->app_state.morse_wpm, 5));
-        infrared->morse_tx_index = 0;
-        return FuriHalInfraredTxGetDataStateDone;
-    }
-}
-
-void infrared_morse_start(InfraredApp* infrared) {
-    if(!infrared || !infrared->app_state.is_morse_beacon_running ||
-       infrared->app_state.is_transmitting) {
-        return;
-    }
-
-    if(!infrared_morse_build_signal(
-           infrared, infrared->morse_text, infrared->app_state.morse_wpm) ||
-       (infrared->morse_timings_count % 2) == 0) {
-        infrared->app_state.is_morse_beacon_running = false;
-        return;
-    }
-
-    if(furi_hal_infrared_is_busy()) {
-        /* Already transmitting this beacon; keep running state and UI as Stop. */
-        return;
-    }
-
-    infrared->app_state.morse_last_start_tick = furi_get_tick();
-    infrared_set_tx_pin(infrared, infrared->app_state.tx_pin);
-
-    infrared->morse_stop_requested = false;
-    infrared->morse_tx_index = 0;
-    furi_hal_infrared_async_tx_set_data_isr_callback(infrared_morse_tx_data_callback, infrared);
-    furi_hal_infrared_async_tx_start(
-        INFRARED_COMMON_CARRIER_FREQUENCY, INFRARED_COMMON_DUTY_CYCLE);
-
-    dolphin_deed(DolphinDeedIrSend);
-    infrared_play_notification_message(infrared, InfraredNotificationMessageBlinkStartSend);
-}
-
-void infrared_morse_stop(InfraredApp* infrared) {
-    if(!infrared) {
-        return;
-    }
-
-    infrared->app_state.is_morse_beacon_running = false;
-    infrared->morse_stop_requested = true;
-
-    if(furi_hal_infrared_is_busy()) {
-        furi_hal_infrared_async_tx_stop();
-    }
-
-    furi_hal_infrared_async_tx_set_data_isr_callback(NULL, NULL);
-    infrared_play_notification_message(infrared, InfraredNotificationMessageBlinkStop);
-}
-
 void infrared_signal_received_callback(void* context, InfraredWorkerSignal* received_signal) {
     furi_assert(context);
     InfraredApp* infrared = context;
@@ -812,7 +592,6 @@ int32_t infrared_app(void* p) {
 
     infrared_load_settings(infrared);
     infrared_make_app_folder(infrared);
-    infrared_morse_load_text(infrared);
 
     bool is_remote_loaded = false;
     bool is_rpc_mode = false;

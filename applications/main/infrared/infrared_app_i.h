@@ -45,16 +45,9 @@
 
 #define INFRARED_MAX_BUTTON_NAME_LENGTH 23
 #define INFRARED_MAX_REMOTE_NAME_LENGTH 23
-#define INFRARED_MORSE_TEXT_MAX_LENGTH  96
-#define INFRARED_MORSE_MAX_TIMINGS      1024
-#define INFRARED_MORSE_REPEAT_DELAY_MS  40
 
-#define INFRARED_APP_FOLDER      EXT_PATH("infrared")
-#define INFRARED_APP_EXTENSION   ".ir"
-#define INFRARED_MORSE_TEXT_DIR  EXT_PATH("subghz")
-#define INFRARED_MORSE_TEXT_PATH INFRARED_MORSE_TEXT_DIR "/morse_beacon_text.txt"
-#define INFRARED_MORSE_SAVES_DIR INFRARED_MORSE_TEXT_DIR "/morse_beacon"
-#define INFRARED_MORSE_SAVE_NAME_MAX 40
+#define INFRARED_APP_FOLDER    EXT_PATH("infrared")
+#define INFRARED_APP_EXTENSION ".ir"
 
 #define INFRARED_DEFAULT_REMOTE_NAME "Remote"
 #define INFRARED_LOG_TAG             "InfraredApp"
@@ -92,15 +85,12 @@ typedef struct {
     bool is_debug_enabled; /**< Whether to enable or disable debugging features. */
     bool is_transmitting; /**< Whether a signal is currently being transmitted. */
     bool is_otg_enabled; /**< Whether OTG power (external 5V) is enabled. */
-    bool is_morse_beacon_running; /**< Whether Morse beacon loop is currently active. */
     InfraredEditTarget edit_target : 8; /**< Selected editing target (a remote or a button). */
     InfraredEditMode edit_mode     : 8; /**< Selected editing operation (rename or delete). */
     int32_t current_button_index; /**< Selected button index (move destination). */
     int32_t prev_button_index; /**< Previous button index (move source). */
     uint32_t last_transmit_time; /**< Lat time a signal was transmitted. */
-    uint32_t morse_last_start_tick;
     FuriHalInfraredTxPin tx_pin;
-    uint8_t morse_wpm;
 } InfraredAppState;
 
 /**
@@ -139,12 +129,7 @@ struct InfraredApp {
     FuriString* button_name; /**< Name of the button requested in RPC mode. */
     /** Arbitrary text storage for various inputs. */
     char text_store[INFRARED_TEXT_STORE_NUM][INFRARED_TEXT_STORE_SIZE + 1];
-    char morse_text[INFRARED_MORSE_TEXT_MAX_LENGTH + 1];
-    uint32_t morse_timings[INFRARED_MORSE_MAX_TIMINGS];
-    size_t morse_timings_count;
-    volatile bool morse_stop_requested; /**< Set to end Morse TX at next timing. */
-    size_t morse_tx_index; /**< Position in morse_timings (ISR-owned while TX). */
-    InfraredAppState app_state; /**< Application state. */
+    InfraredAppState app_state;
 
     void* rpc_ctx; /**< Pointer to the RPC context object. */
 };
@@ -334,14 +319,6 @@ void infrared_enable_otg(InfraredApp* infrared, bool enable);
  * @param[in] infrared pointer to the application instance.
  */
 void infrared_save_settings(InfraredApp* infrared);
-
-bool infrared_morse_build_signal(InfraredApp* infrared, const char* text, uint8_t wpm);
-bool infrared_morse_load_text(InfraredApp* infrared);
-bool infrared_morse_load_text_from(InfraredApp* infrared, const char* path);
-bool infrared_morse_save_text(InfraredApp* infrared);
-bool infrared_morse_save_text_named(InfraredApp* infrared, FuriString* saved_path);
-void infrared_morse_start(InfraredApp* infrared);
-void infrared_morse_stop(InfraredApp* infrared);
 
 /**
  * @brief Common received signal callback.

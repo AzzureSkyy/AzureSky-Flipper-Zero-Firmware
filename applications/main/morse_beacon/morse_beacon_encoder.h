@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-bool infrared_morse_encode(
+bool morse_beacon_encode(
     const char* text,
     uint8_t wpm,
     uint32_t* out_timings,

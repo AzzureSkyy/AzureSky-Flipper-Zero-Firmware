@@ -4,7 +4,6 @@ enum SubmenuIndex {
     SubmenuIndexUniversalRemotes,
     SubmenuIndexLearnNewRemote,
     SubmenuIndexSavedRemotes,
-    SubmenuIndexMorseBeacon,
     SubmenuIndexGpioSettings,
     SubmenuIndexDebug
 };
@@ -35,12 +34,6 @@ void infrared_scene_start_on_enter(void* context) {
         submenu,
         "Saved Remotes",
         SubmenuIndexSavedRemotes,
-        infrared_scene_start_submenu_callback,
-        infrared);
-    submenu_add_item(
-        submenu,
-        "Morse Beacon",
-        SubmenuIndexMorseBeacon,
         infrared_scene_start_submenu_callback,
         infrared);
     submenu_add_item(
@@ -80,8 +73,6 @@ bool infrared_scene_start_on_event(void* context, SceneManagerEvent event) {
         } else if(submenu_index == SubmenuIndexSavedRemotes) {
             furi_string_set(infrared->file_path, INFRARED_APP_FOLDER);
             scene_manager_next_scene(scene_manager, InfraredSceneRemoteList);
-        } else if(submenu_index == SubmenuIndexMorseBeacon) {
-            scene_manager_next_scene(scene_manager, InfraredSceneMorseConfig);
         } else if(submenu_index == SubmenuIndexGpioSettings) {
             scene_manager_next_scene(scene_manager, InfraredSceneGpioSettings);
         } else if(submenu_index == SubmenuIndexDebug) {
